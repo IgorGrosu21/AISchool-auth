@@ -1,0 +1,46 @@
+[project]
+name = "fastapi-auth"
+version = "0.1.0"
+description = "FastAPI Authentication API"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy>=2.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.6",
+    "email-validator>=2.1.0",
+    "werkzeug>=3.0.0",
+    "jinja2>=3.1.0",
+    "requests>=2.31.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "cryptography>=41.0.0",
+]
+
+[tool.pylint]
+load-plugins = "pylint_django"
+django-settings-module = "core.settings"
+
+disable = [
+    "invalid-name",
+    "missing-docstring",
+    "bad-indentation",
+    "line-too-long",
+]
+
+enable = [
+    "all",
+]
+
+confidence = "HIGH"
+
+ignore-paths = [
+    "migrations",
+    "venv",
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".*\\.pyc$",
+]
