@@ -21,11 +21,11 @@ class SignUpRequest(BaseModel):
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, value):
             raise ValueError('invalid_email_format')
-        
+
         domain = value.split('@')[1]
         if len(domain) < 3 or '.' not in domain:
             raise ValueError('invalid_email_domain')
-        
+
         return value.lower().strip()
 
     @field_validator('password')

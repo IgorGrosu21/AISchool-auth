@@ -21,7 +21,7 @@ async def signup(request: SignUpRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="email_already_exists"
         )
-    
+
     # Create new user
     user = User(
         email=request.email,
@@ -29,11 +29,11 @@ async def signup(request: SignUpRequest, db: Session = Depends(get_db)):
         is_verified=False,
     )
     user.set_password(request.password)
-    
+
     db.add(user)
     db.commit()
     db.refresh(user)
-    
+
     # Generate tokens and create token record in database
     tokens = create_tokens_for_user(user.email, db)
     return TokenResponse(**tokens)
@@ -48,14 +48,14 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="email_not_found"
         )
-    
+
     # Check password
     if not user.check_password(request.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="password_incorrect"
         )
-    
+
     # Generate tokens and create token record in database
     tokens = create_tokens_for_user(user.email, db)
     return TokenResponse(**tokens)
@@ -71,21 +71,21 @@ async def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db
         )
         response.raise_for_status()
         token_info = response.json()
-        
+
         if "error" in token_info:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="invalid_google_token"
             )
-        
+
         if "email" not in token_info:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="email_not_provided_by_google"
             )
-        
+
         verified_email = token_info["email"].lower()
-        
+
         # If frontend provided email, verify it matches
         if request.user_email:
             if request.user_email.lower() != verified_email:
@@ -93,7 +93,7 @@ async def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="email_mismatch"
                 )
-        
+
         # Find user
         user = db.query(User).filter(User.email == verified_email).first()
         if not user:
@@ -101,11 +101,11 @@ async def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="email_not_found"
             )
-        
+
         # Generate tokens and create token record in database
         tokens = create_tokens_for_user(user.email, db)
         return TokenResponse(**tokens)
-        
+
     except requests.RequestException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -130,21 +130,21 @@ async def facebook_login(request: FacebookLoginRequest, db: Session = Depends(ge
         )
         response.raise_for_status()
         token_info = response.json()
-        
+
         if "error" in token_info:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="invalid_facebook_token"
             )
-        
+
         if "email" not in token_info:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="email_not_provided_by_facebook"
             )
-        
+
         verified_email = token_info["email"].lower()
-        
+
         # If frontend provided email, verify it matches
         if request.user_email:
             if request.user_email.lower() != verified_email:
@@ -152,7 +152,7 @@ async def facebook_login(request: FacebookLoginRequest, db: Session = Depends(ge
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="email_mismatch"
                 )
-        
+
         # Find user
         user = db.query(User).filter(User.email == verified_email).first()
         if not user:
@@ -160,11 +160,11 @@ async def facebook_login(request: FacebookLoginRequest, db: Session = Depends(ge
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="email_not_found"
             )
-        
+
         # Generate tokens and create token record in database
         tokens = create_tokens_for_user(user.email, db)
         return TokenResponse(**tokens)
-        
+
     except requests.RequestException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

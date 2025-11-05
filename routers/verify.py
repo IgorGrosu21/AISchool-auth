@@ -29,14 +29,14 @@ async def send_verification_email_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="already_verified"
         )
-    
+
     # Generate verification token
     token = generate_verification_token(current_user)
     verification_tokens[current_user.email] = token
-    
+
     # Send email
     send_verification_email(current_user, token)
-    
+
     return None
 
 @router.get("/verify", status_code=status.HTTP_204_NO_CONTENT)
@@ -53,7 +53,7 @@ async def verify_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="user_doesn't_exist"
             )
-        
+
         # Verify token
         stored_token = verification_tokens.get(user.email)
         if not stored_token or stored_token != token:
@@ -61,14 +61,14 @@ async def verify_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="incorrect_token"
             )
-        
+
         # Mark user as verified
         user.is_verified = True
         db.commit()
-        
+
         # Remove token from storage
         verification_tokens.pop(user.email, None)
-        
+
         return None
     except HTTPException:
         raise

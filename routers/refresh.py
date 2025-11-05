@@ -19,26 +19,26 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="no_refresh_token"
         )
-    
+
     try:
         # Verify refresh token and get email and jti
         token_data = verify_refresh_token(request.refresh)
         email = token_data["email"]
         jti = token_data.get("jti")
-        
+
         # Check if token is blacklisted
         if token_blacklist.is_blacklisted(db, request.refresh, jti):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid_refresh_token"
             )
-        
+
         # Create new access token
         access_token = create_access_token(
             {"sub": email},
             expires_delta=ACCESS_TOKEN_EXPIRE
         )
-        
+
         return AccessTokenResponse(access=access_token)
     except HTTPException:
         raise
@@ -60,16 +60,16 @@ async def logout(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="no_refresh_token"
         )
-    
+
     try:
         # Verify token and get expiry and user info
         from jose import jwt
         from utils.jwt_utils import _get_public_key_from_jwks
-        
+
         # Get kid from token header
         unverified = jwt.get_unverified_header(request.refresh)
         kid = unverified.get("kid")
-        
+
         if kid:
             # Get public key for decoding
             public_key = _get_public_key_from_jwks(kid)
@@ -77,14 +77,14 @@ async def logout(
             exp = datetime.fromtimestamp(payload.get("exp", 0))
             user_email = payload.get("sub")
             jti = payload.get("jti")
-            
+
             # Add to blacklist
             if user_email:
                 token_blacklist.add(db, request.refresh, exp, user_email, jti)
     except Exception:
         # Even if token is invalid, return success
         pass
-    
+
     return None
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)

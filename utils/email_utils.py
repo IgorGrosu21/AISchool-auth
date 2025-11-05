@@ -135,7 +135,7 @@ class HTMLToTextConverter(HTMLParser):
 def _html_to_text(html_content: str) -> str:
     """
     Convert HTML content to plain text with proper formatting.
-    
+
     Features:
     - Extracts URLs from links and appends them
     - Handles block elements with proper line breaks
