@@ -1,4 +1,7 @@
+"""Database utilities"""
+
 from functools import wraps
+from flask import g
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -17,16 +20,20 @@ else:
     # PostgreSQL or other databases
     engine = create_engine(DATABASE_URL)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SESSION_LOCAL = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
 def get_db():
-    """Dependency to get database session"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
+    """Get database session from Flask g"""
+    if 'db' not in g:
+        g.db = SESSION_LOCAL()
+    return g.db
+
+def close_db(_=None):
+    """Close database session"""
+    db = g.pop('db', None)
+    if db is not None:
         db.close()
 
 def init_db():
@@ -39,7 +46,17 @@ def with_commit(refresh: bool = True):
         @wraps(func)
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
-            db: Session = args[0]
+            # Get db from args or kwargs
+            db = None
+            for arg in args:
+                if isinstance(arg, Session):
+                    db = arg
+                    break
+            if not db and 'db' in kwargs:
+                db = kwargs['db']
+            if not db:
+                db = get_db()
+
             db.commit()
             if refresh and result:
                 db.refresh(result)

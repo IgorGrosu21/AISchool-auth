@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy.orm import Session
+from flask import Blueprint, jsonify
 
 from models import (
     create_user,
@@ -10,12 +9,12 @@ from models import (
 )
 from schemas import (
     BadRequest,
-    LoginRequest,
+    get_login_request,
+    get_oauth2_request,
+    get_signup_request,
     NotFound,
-    OAuth2Request,
-    SignUpRequest,
-    TokenResponse,
-    VerificationCodeResponse,
+    token_response,
+    verification_code_response,
 )
 from utils import (
     create_tokens_for_user,
@@ -24,72 +23,253 @@ from utils import (
     validate_oauth2_token,
 )
 
+router = Blueprint("auth", __name__)
 
-router = APIRouter(tags=["auth"])
+@router.route("/signup", methods=["POST"])
+def signup():
+    """
+    Register a new user
+    ---
+    tags:
+      - auth
+    summary: Register a new user
+    description: Creates a new user account and sends a verification email
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: User registration data
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              format: email
+              description: User's email address
+              example: user@example.com
+            password:
+              type: string
+              description: User's password (min 8 chars, must contain letters and numbers)
+              example: password123
+    responses:
+      200:
+        description: Verification code sent successfully
+        schema:
+          type: object
+          properties:
+            purpose:
+              type: string
+              example: email_verification
+      400:
+        description: Bad request (e.g., email already exists, invalid email format)
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 400
+            detail:
+              type: string
+              example: email_already_exists
+            attr:
+              type: string
+              example: email
+    """
+    request_data = get_signup_request()
+    db = get_db()
 
-@router.post("/signup", status_code=status.HTTP_200_OK, response_model=VerificationCodeResponse, responses={
-    400: {
-        "model": BadRequest.error,
-        "description": "Bad request"
-    }
-})
-async def signup(request: SignUpRequest, db: Session = Depends(get_db)):
-    """Register a new user"""
-
-    user = fetch_user_by_email(db, request.email)
+    user = fetch_user_by_email(db, request_data["email"])
     if user:
         raise BadRequest.exception(detail="email_already_exists", attr="email")
 
-    user = create_user(db, request.email, request.password)
+    user = create_user(db, request_data["email"], request_data["password"])
 
-    await _issue_code_and_tokens(db, user.email)
-    return VerificationCodeResponse(purpose="email_verification")
+    _issue_code_and_tokens(db, user.email)
+    return jsonify(verification_code_response("email_verification")), 200
 
-@router.post("/login", status_code=status.HTTP_201_CREATED, response_model=TokenResponse, responses={
-    200: {
-        "model": VerificationCodeResponse,
-        "description": "Further verification required"
-    },
-    400: {
-        "model": BadRequest.error,
-        "description": "Bad request (e.g., incorrect password)"
-    },
-    404: {
-        "model": NotFound.error,
-        "description": "User not found"
-    }
-})
-async def login(request: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    """Login with email and password"""
+@router.route("/login", methods=["POST"])
+def login():
+    """
+    Login with email and password
+    ---
+    tags:
+      - auth
+    summary: User login
+    description: Authenticate user with email and password. Returns tokens if verified, otherwise sends verification code.
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: Login credentials
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              format: email
+              description: User's email address
+              example: user@example.com
+            password:
+              type: string
+              description: User's password
+              example: password123
+    responses:
+      200:
+        description: Further verification required (user not verified)
+        schema:
+          type: object
+          properties:
+            purpose:
+              type: string
+              example: email_verification
+      201:
+        description: Login successful
+        schema:
+          type: object
+          properties:
+            access:
+              type: string
+              description: JWT access token (RS256)
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+            refresh:
+              type: string
+              description: JWT refresh token (RS256)
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+      400:
+        description: Bad request (e.g., incorrect password, password not supported)
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 400
+            detail:
+              type: string
+              example: password_incorrect
+            attr:
+              type: string
+              example: password
+      404:
+        description: User not found
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 404
+            detail:
+              type: string
+              example: email_not_found
+            attr:
+              type: string
+              example: email
+    """
+    request_data = get_login_request()
+    db = get_db()
 
-    user = fetch_user_by_email(db, request.email)
+    user = fetch_user_by_email(db, request_data["email"])
     if not user:
         raise NotFound.exception(detail="email_not_found", attr="email")
 
     if not user.has_password() and user.is_verified:
         raise BadRequest.exception(detail="password_not_supported", attr="password")
 
-    if not user.check_password(request.password):
+    if not user.check_password(request_data["password"]):
         raise BadRequest.exception(detail="password_incorrect", attr="password")
 
     if not user.is_verified:
-        response.status_code = status.HTTP_200_OK
-
-        await _issue_code_and_tokens(db, user.email)
-        return VerificationCodeResponse(purpose="email_verification")
+        _issue_code_and_tokens(db, user.email)
+        return jsonify(verification_code_response("email_verification")), 200
 
     tokens = create_tokens_for_user(user.email, db)
-    return TokenResponse(**tokens)
+    return jsonify(token_response(**tokens)), 201
 
-@router.post("/oauth2", status_code=status.HTTP_201_CREATED, response_model=TokenResponse, responses={
-    400: {
-        "model": BadRequest.error,
-        "description": "Bad request (e.g., invalid token, email mismatch)"
-    }
-})
-async def oauth2(request: OAuth2Request, db: Session = Depends(get_db)):
-    """Login with OAuth2 provider token"""
-    verified_email = await validate_oauth2_token(request.provider, request.token, request.email)
+@router.route("/oauth2", methods=["POST"])
+def oauth2():
+    """
+    Login with OAuth2 provider token
+    ---
+    tags:
+      - auth
+    summary: OAuth2 login
+    description: Authenticate user using OAuth2 provider (Google or Facebook) token
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: OAuth2 credentials
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - token
+            - provider
+          properties:
+            email:
+              type: string
+              format: email
+              description: User's email address
+              example: user@example.com
+            token:
+              type: string
+              description: OAuth token obtained from the provider
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+            provider:
+              type: string
+              enum: [google, facebook]
+              description: OAuth provider name
+              example: google
+    responses:
+      201:
+        description: Login successful
+        schema:
+          type: object
+          properties:
+            access:
+              type: string
+              description: JWT access token (RS256)
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+            refresh:
+              type: string
+              description: JWT refresh token (RS256)
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+      400:
+        description: Bad request (e.g., invalid token, email mismatch, invalid provider)
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 400
+            detail:
+              type: string
+              example: invalid_oauth2_token
+            attr:
+              type: string
+              example: token
+    """
+    request_data = get_oauth2_request()
+    db = get_db()
+    
+    verified_email = validate_oauth2_token(request_data["provider"], request_data["token"], request_data["email"])
 
     user = fetch_user_by_email(db, verified_email)
     if not user:
@@ -98,10 +278,10 @@ async def oauth2(request: OAuth2Request, db: Session = Depends(get_db)):
         user = verify_user(db, user)
 
     tokens = create_tokens_for_user(user.email, db)
-    return TokenResponse(**tokens)
+    return jsonify(token_response(**tokens)), 201
 
-async def _issue_code_and_tokens(db: Session, email: str):
+def _issue_code_and_tokens(db, email: str):
     verification_code = create_verification_code(db, email, "email_verification")
     token = create_verification_token(email)
 
-    await send_verification_email(email, verification_code.code, token, purpose="email_verification")
+    send_verification_email(email, verification_code.code, token, purpose="email_verification")

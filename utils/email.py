@@ -1,8 +1,8 @@
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+import smtplib
 
-from aiosmtplib import SMTP
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 from core import (
@@ -79,7 +79,7 @@ def get_email_template(language: str, purpose: str):
     return language, html_template, text_template_path
 
 
-async def send_verification_email(
+def send_verification_email(
     email: str,
     code: Optional[str] = None,
     token: Optional[str] = None,
@@ -121,12 +121,8 @@ async def send_verification_email(
     msg.attach(part1)
     msg.attach(part2)
 
-    server = SMTP(
-        hostname=EMAIL_HOST,
-        port=EMAIL_PORT,
-        username=EMAIL_HOST_USER,
-        password=EMAIL_HOST_PASSWORD,
-        use_tls=True
-    )
-    async with server:
-        await server.send_message(msg)
+    # Use synchronous SMTP
+    server = smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT)
+    server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+    server.send_message(msg)
+    server.quit()

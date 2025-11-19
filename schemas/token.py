@@ -1,10 +1,8 @@
-from pydantic import BaseModel, Field
-
-# Token schemas
-class AccessTokenResponse(BaseModel):
+# Token response schemas - just helper functions for Flask
+def access_token_response(access: str):
     """Response containing only the access token"""
-    access: str = Field(..., description="JWT access token (RS256) used for authenticating API requests. Expires after 2 hours.")
+    return {"access": access}
 
-class TokenResponse(AccessTokenResponse):
+def token_response(access: str, refresh: str):
     """Response containing both access and refresh tokens"""
-    refresh: str = Field(..., description="JWT refresh token (RS256) used to obtain new access tokens. Expires after 180 days.")
+    return {"access": access, "refresh": refresh}

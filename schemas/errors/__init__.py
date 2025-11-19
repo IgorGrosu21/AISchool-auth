@@ -1,4 +1,4 @@
-"""Pydantic schemas for error responses"""
+"""Flask schemas for error responses"""
 from .errors import ErrorResponse, BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError
 from .exceptions import HTTPException, BadRequestException, UnauthorizedException, ForbiddenException, NotFoundException
 

@@ -1,6 +1,6 @@
 # AISchool-auth
 
-FastAPI Authentication API with JWT tokens, OAuth2 support, and email verification.
+Flask Authentication API with JWT tokens, OAuth2 support, and email verification.
 
 ## Features
 
@@ -35,14 +35,15 @@ FastAPI Authentication API with JWT tokens, OAuth2 support, and email verificati
    ```bash
    python main.py
    ```
-   Or using uvicorn directly:
+   Or using Flask CLI:
    ```bash
-   uvicorn main:app --reload
+   flask run --host 127.0.0.1 --port 8080
    ```
 
 5. **Access the API**
-   - API Documentation: http://localhost:8080/docs
-   - Alternative docs: http://localhost:8080/redoc
+   - API Base URL: http://localhost:8080
+   - API Documentation (Swagger UI): http://localhost:8080/docs
+   - OpenAPI Schema (JSON): http://localhost:8080/apispec.json
 
 ## Configuration
 
@@ -95,7 +96,7 @@ auth/
 ├── core/              # Core settings and middleware
 ├── models/            # Database models
 ├── routers/           # API route handlers
-├── schemas/           # Pydantic schemas
+├── schemas/           # Request/response validation schemas
 ├── templates/         # Email templates
 ├── utils/             # Utility functions
 ├── keys/              # RSA keys storage (auto-generated)
@@ -105,16 +106,18 @@ auth/
 
 ## API Endpoints
 
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login
-- `POST /auth/logout` - User logout
-- `GET /auth/me` - Get current user info
-- `POST /auth/verify` - Verify email
-- `POST /auth/restore` - Password reset
-- `GET /.well-known/jwks.json` - JWKS endpoint
+- `POST /signup` - User registration
+- `POST /login` - User login
+- `POST /oauth2` - OAuth2 login (Google/Facebook)
+- `POST /verify-code` - Verify email with code
+- `GET /verify-token` - Verify email with token
+- `POST /restore` - Password reset
 - `POST /refresh` - Refresh access token
+- `POST /logout` - Logout (blacklist refresh token)
+- `POST /logout-all` - Logout from all devices
+- `GET /.well-known/jwks.json` - JWKS endpoint
 
-See `/docs` endpoint for interactive API documentation.
+See `/docs` endpoint for interactive API documentation (Swagger UI).
 
 ## License
 

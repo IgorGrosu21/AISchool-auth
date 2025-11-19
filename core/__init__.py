@@ -9,10 +9,15 @@ from .settings import (
 )
 from .rsa_keys import get_key_manager, get_current_kid, get_jwks, get_private_key
 from .localization import get_language
-from .middleware import SecurityHeadersMiddleware, TrustedHostMiddleware, CorsMiddleware, LocalizationMiddleware
+from .middleware import (
+    SecurityHeadersMiddleware,
+    TrustedHostMiddleware,
+    CorsMiddleware,
+    LocalizationMiddleware
+)
 
 # Build middleware stack conditionally
-middlewareStack = [
+MIDDLEWARE_STACK = [
     LocalizationMiddleware,
     SecurityHeadersMiddleware,
     TrustedHostMiddleware,
@@ -23,7 +28,7 @@ middlewareStack = [
 if FORCE_HTTPS:
     from .middleware import HTTPSRedirectMiddleware
     # Add at the beginning (will execute last) to redirect HTTP to HTTPS
-    middlewareStack.insert(0, HTTPSRedirectMiddleware)
+    MIDDLEWARE_STACK.insert(0, HTTPSRedirectMiddleware)
 
 __all__ = [
     'BASE_DIR', 'DEBUG', 'HOST',
@@ -34,6 +39,5 @@ __all__ = [
     'GOOGLE_CLIENT_ID', 'FACEBOOK_CLIENT_ID',
     'get_language',
     'get_key_manager', 'get_current_kid', 'get_jwks', 'get_private_key',
-    'middlewareStack',
+    'MIDDLEWARE_STACK',
 ]
-

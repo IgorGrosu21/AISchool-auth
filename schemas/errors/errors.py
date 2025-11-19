@@ -1,12 +1,19 @@
-from pydantic import BaseModel, Field
 from typing import Optional
 
 # Main error response model matching TypeScript IError interface
-class ErrorResponse(BaseModel):
+class ErrorResponse:
     """Standard error response model returned when API requests fail"""
-    code: int = Field(..., description="Status code of the error")
-    detail: str = Field(..., description="Machine-readable error code (e.g., 'email_already_exists', 'invalid_token', 'user_not_found')")
-    attr: Optional[str] = Field(None, description="Optional field name or attribute that the error relates to (e.g., 'email', 'password')")
+    def __init__(self, code: int, detail: str, attr: Optional[str] = None):
+        self.code = code
+        self.detail = detail
+        self.attr = attr
+    
+    def to_dict(self):
+        return {
+            "code": self.code,
+            "detail": self.detail,
+            "attr": self.attr
+        }
 
 # Convenience aliases for use in responses parameter
 BadRequestError = ErrorResponse

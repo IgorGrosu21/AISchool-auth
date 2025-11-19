@@ -1,12 +1,13 @@
+"""Settings for the application"""
 from datetime import timedelta
 import os
 from pathlib import Path
 
-import dotenv
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-dotenv.load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env')
 
 # General Settings
 

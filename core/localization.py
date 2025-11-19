@@ -1,9 +1,10 @@
-from contextvars import ContextVar
+"""Localization utilities"""
+
 from typing import Iterable
 
-from .settings import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
+from flask import g
 
-_language_context: ContextVar[str] = ContextVar("language_context", default=DEFAULT_LANGUAGE)
+from .settings import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
 
 
 def normalize_language(language: str, supported: Iterable[str] | None = None) -> str:
@@ -28,16 +29,10 @@ def normalize_language(language: str, supported: Iterable[str] | None = None) ->
 def set_language(language: str):
     """Set the current language context."""
     normalized = normalize_language(language)
-    return _language_context.set(normalized)
+    g.language = normalized
+    return normalized
 
 
 def get_language() -> str:
     """Get the current language context."""
-    return _language_context.get()
-
-
-def reset_language(token) -> None:
-    """Reset the language context to a previous value."""
-    if token is not None:
-        _language_context.reset(token)
-
+    return getattr(g, 'language', DEFAULT_LANGUAGE)

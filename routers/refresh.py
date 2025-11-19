@@ -1,41 +1,96 @@
-from fastapi import APIRouter, Depends, status
+from flask import Blueprint, jsonify
 from jose import jwt
-from sqlalchemy.orm import Session
 
 from models import (
-    User,
     blacklist_refresh_tokens,
     create_or_update_refresh_token,
     get_db,
     is_blacklisted,
 )
 from schemas import (
-    AccessTokenResponse,
+    access_token_response,
     BadRequest,
-    RefreshTokenRequest,
+    get_refresh_token_request,
     Unauthorized,
 )
 from utils import create_access_token, get_current_user, verify_refresh_token
 
-router = APIRouter(tags=["refresh"])
+router = Blueprint("refresh", __name__)
 
-@router.post("/refresh", response_model=AccessTokenResponse, responses={
-    400: {
-        "model": BadRequest.error,
-        "description": "Bad request (e.g., missing or invalid refresh token)"
-    },
-    401: {
-        "model": Unauthorized.error,
-        "description": "Unauthorized (e.g., token blacklisted)"
-    }
-})
-async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
-    """Refresh access token using refresh token"""
-    if not request.refresh:
+@router.route("/refresh", methods=["POST"])
+def refresh_token():
+    """
+    Refresh access token using refresh token
+    ---
+    tags:
+      - refresh
+    summary: Refresh access token
+    description: Get a new access token using a valid refresh token
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: Refresh token data
+        required: true
+        schema:
+          type: object
+          required:
+            - refresh
+          properties:
+            refresh:
+              type: string
+              description: JWT refresh token (RS256)
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+    responses:
+      200:
+        description: New access token generated
+        schema:
+          type: object
+          properties:
+            access:
+              type: string
+              description: JWT access token (RS256)
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+      400:
+        description: Bad request (e.g., missing or invalid refresh token)
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 400
+            detail:
+              type: string
+              example: invalid_refresh_token
+            attr:
+              type: string
+              example: refresh
+      401:
+        description: Unauthorized (e.g., token blacklisted)
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 401
+            detail:
+              type: string
+              example: invalid_refresh_token
+            attr:
+              type: string
+              example: refresh
+    """
+    request_data = get_refresh_token_request()
+    db = get_db()
+    
+    if not request_data["refresh"]:
         raise BadRequest.exception(detail="no_refresh_token", attr="refresh")
 
     try:
-        token_data = verify_refresh_token(request.refresh)
+        token_data = verify_refresh_token(request_data["refresh"])
         email, jti = token_data.get("email"), token_data.get("jti")
 
         if is_blacklisted(db, jti):
@@ -43,24 +98,53 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
 
         access_token = create_access_token({"email": email})
 
-        return AccessTokenResponse(access=access_token)
+        return jsonify(access_token_response(access_token)), 200
     except (BadRequest.exception, Unauthorized.exception):
         raise
     except Exception as e:
         raise BadRequest.exception(detail="invalid_refresh_token", attr="refresh") from e
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: RefreshTokenRequest, db: Session = Depends(get_db)):
-    """Logout by blacklisting refresh token"""
-    if not request.refresh:
-        return None
+@router.route("/logout", methods=["POST"])
+def logout():
+    """
+    Logout by blacklisting refresh token
+    ---
+    tags:
+      - refresh
+    summary: Logout
+    description: Logout by blacklisting the provided refresh token
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        description: Refresh token to blacklist
+        required: false
+        schema:
+          type: object
+          properties:
+            refresh:
+              type: string
+              description: JWT refresh token to blacklist
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+    responses:
+      204:
+        description: Logout successful (no content)
+    """
+    request_data = get_refresh_token_request()
+    db = get_db()
+    
+    if not request_data.get("refresh"):
+        return "", 204
 
     try:
-        unverified = jwt.get_unverified_header(request.refresh)
+        unverified = jwt.get_unverified_header(request_data["refresh"])
         kid = unverified.get("kid")
 
         if kid:
-            payload = verify_refresh_token(request.refresh)
+            payload = verify_refresh_token(request_data["refresh"])
             email, jti, exp = payload.get("email"), payload.get("jti"), payload.get("exp")
             if email and jti:
                 create_or_update_refresh_token(db, {
@@ -72,10 +156,42 @@ async def logout(request: RefreshTokenRequest, db: Session = Depends(get_db)):
     except Exception:
         pass
 
-    return None
+    return "", 204
 
-@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
-async def logout_all(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Logout from all devices (blacklist all user tokens)"""
+@router.route("/logout-all", methods=["POST"])
+def logout_all():
+    """
+    Logout from all devices (blacklist all user tokens)
+    ---
+    tags:
+      - refresh
+    summary: Logout from all devices
+    description: Blacklist all refresh tokens for the current authenticated user
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    security:
+      - Bearer: []
+    responses:
+      204:
+        description: Logout from all devices successful (no content)
+      401:
+        description: Unauthorized (missing or invalid token)
+        schema:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 401
+            detail:
+              type: string
+              example: missing_authorization_header
+            attr:
+              type: string
+              example: authorization
+    """
+    current_user = get_current_user()
+    db = get_db()
     blacklist_refresh_tokens(db, current_user.email)
-    return None
+    return "", 204

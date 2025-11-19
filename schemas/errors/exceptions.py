@@ -1,8 +1,6 @@
 from typing import Optional
 
-from fastapi import HTTPException as FastAPIHTTPException
-
-class HTTPException(FastAPIHTTPException):
+class HTTPException(Exception):
     """HTTP exception - always returns a status code"""
     status_code: int
     detail: str
@@ -16,7 +14,7 @@ class HTTPException(FastAPIHTTPException):
         """
         self.detail = detail
         self.attr = attr
-        super().__init__(status_code=self.status_code, detail=detail)
+        super().__init__(detail)
 
 # HTTPException classes for raising exceptions
 class BadRequestException(HTTPException):

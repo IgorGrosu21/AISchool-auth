@@ -1,4 +1,4 @@
-import aiohttp
+import requests
 
 from core import GOOGLE_CLIENT_ID, FACEBOOK_CLIENT_ID
 from schemas import BadRequest
@@ -29,7 +29,7 @@ def validate_facebook_token(token_info: dict) -> dict:
 
     raise BadRequest.exception(detail="invalid_oauth2_token", attr="token")
 
-async def validate_oauth2_token(provider: str, token: str, email: str) -> str:
+def validate_oauth2_token(provider: str, token: str, email: str) -> str:
     if provider == "google":
         url = url_mapping["google"].format(token=token)
     elif provider == "facebook":
@@ -38,17 +38,17 @@ async def validate_oauth2_token(provider: str, token: str, email: str) -> str:
         raise BadRequest.exception(detail="invalid_oauth2_provider", attr="provider")
 
     try:
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
-            async with session.get(url) as resp:
-                    token_info = await resp.json()
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        token_info = response.json()
 
-                    if provider == "google":
-                        validate_google_token(token_info, email)
-                    elif provider == "facebook":
-                        validate_facebook_token(token_info['data'])
+        if provider == "google":
+            validate_google_token(token_info, email)
+        elif provider == "facebook":
+            validate_facebook_token(token_info['data'])
 
-                    return email
-    except aiohttp.ClientResponseError as e:
+        return email
+    except requests.exceptions.RequestException as e:
         raise BadRequest.exception(detail="failed_to_validate_oauth2_token", attr="token") from e
     except BadRequest.exception:
         raise

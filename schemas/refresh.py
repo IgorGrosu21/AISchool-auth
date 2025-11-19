@@ -1,6 +1,10 @@
-from pydantic import BaseModel, Field
+from flask import request
+from .errors import BadRequest
 
-# Refresh token schemas
-class RefreshTokenRequest(BaseModel):
-    """Request schema for token refresh operations"""
-    refresh: str = Field(..., description="JWT refresh token (RS256) used to obtain a new access token. Must be a valid, non-expired, and non-blacklisted refresh token.")
+def get_refresh_token_request():
+    """Parse and validate refresh token request"""
+    data = request.get_json() or {}
+    refresh = data.get("refresh")
+    if not refresh:
+        raise BadRequest.exception(detail="refresh_token_required", attr="refresh")
+    return {"refresh": refresh}

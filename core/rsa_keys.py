@@ -5,8 +5,6 @@ Handles key generation, storage, and rotation
 import base64
 from datetime import datetime, timedelta
 import json
-import os
-from pathlib import Path
 from typing import Dict, Optional
 
 from cryptography.hazmat.backends import default_backend
@@ -15,14 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from .settings import BASE_DIR
 
-# On Vercel/serverless, use /tmp for writable storage
-# Check if we're on Vercel (has VERCEL environment variable)
-if os.environ.get("VERCEL") or not os.access(str(BASE_DIR), os.W_OK):
-    # Use /tmp for serverless environments
-    KEYS_DIR = Path("/tmp") / "keys"
-else:
-    KEYS_DIR = BASE_DIR / "keys"
-
+KEYS_DIR = BASE_DIR / "keys"
 KEYS_FILE = KEYS_DIR / "rsa_keys.json"
 
 

@@ -1,3 +1,5 @@
+"""Database models"""
+
 from datetime import datetime
 import secrets
 import string

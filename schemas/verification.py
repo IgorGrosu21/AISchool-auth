@@ -1,13 +1,26 @@
-from pydantic import BaseModel, Field
+from flask import request
+from .validators import validate_email, validate_verification_code, ValidationError
+from .errors import BadRequest
 
-from .validators import ValidateExistingEmail, ValidateVerificationCode
+def get_verification_code_request():
+    """Parse and validate verification code request"""
+    from .validators import validate_password
+    data = request.get_json() or {}
+    try:
+        email = validate_email(data.get("email"), required=True)
+        code = validate_verification_code(data.get("code"), required=True)
+        purpose = data.get("purpose")
+        if not purpose:
+            raise BadRequest.exception(detail="purpose_required", attr="purpose")
+        
+        password = None
+        if purpose == "password_reset":
+            password = validate_password(data.get("password"), required=True)
+        
+        return {"email": email, "code": code, "password": password, "purpose": purpose}
+    except ValidationError as e:
+        raise BadRequest.exception(detail=e.message, attr=e.field)
 
-# Verification schemas
-class VerificationCodeRequest(ValidateExistingEmail, ValidateVerificationCode):
-    """Request schema for verifying a verification code"""
-    password: str = Field(..., description="User's password for authentication.")
-    purpose: str = Field(..., description="Purpose of the verification code.")
-
-class VerificationCodeResponse(BaseModel):
+def verification_code_response(purpose: str):
     """Response containing only the verification code"""
-    purpose: str = Field(..., description="Purpose of the verification code.")
+    return {"purpose": purpose}
