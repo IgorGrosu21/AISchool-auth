@@ -1,179 +1,107 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
-import requests
-from core.database import get_db
-from models.models import User
-from schemas.schemas import (
-    SignUpRequest, LoginRequest, GoogleLoginRequest, FacebookLoginRequest,
-    TokenResponse
+
+from models import (
+    create_user,
+    create_verification_code,
+    fetch_user_by_email,
+    get_db,
+    verify_user,
 )
-from utils.jwt_utils import create_tokens_for_user
+from schemas import (
+    BadRequest,
+    LoginRequest,
+    NotFound,
+    OAuth2Request,
+    SignUpRequest,
+    TokenResponse,
+    VerificationCodeResponse,
+)
+from utils import (
+    create_tokens_for_user,
+    create_verification_token,
+    send_verification_email,
+    validate_oauth2_token,
+)
+
 
 router = APIRouter(tags=["auth"])
 
-@router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", status_code=status.HTTP_200_OK, response_model=VerificationCodeResponse, responses={
+    400: {
+        "model": BadRequest.error,
+        "description": "Bad request"
+    }
+})
 async def signup(request: SignUpRequest, db: Session = Depends(get_db)):
     """Register a new user"""
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.email == request.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="email_already_exists"
-        )
 
-    # Create new user
-    user = User(
-        email=request.email,
-        signup_method='email',
-        is_verified=False,
-    )
-    user.set_password(request.password)
+    user = fetch_user_by_email(db, request.email)
+    if user:
+        raise BadRequest.exception(detail="email_already_exists", attr="email")
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = create_user(db, request.email, request.password)
 
-    # Generate tokens and create token record in database
-    tokens = create_tokens_for_user(user.email, db)
-    return TokenResponse(**tokens)
+    await _issue_code_and_tokens(db, user.email)
+    return VerificationCodeResponse(purpose="email_verification")
 
-@router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login", status_code=status.HTTP_201_CREATED, response_model=TokenResponse, responses={
+    200: {
+        "model": VerificationCodeResponse,
+        "description": "Further verification required"
+    },
+    400: {
+        "model": BadRequest.error,
+        "description": "Bad request (e.g., incorrect password)"
+    },
+    404: {
+        "model": NotFound.error,
+        "description": "User not found"
+    }
+})
+async def login(request: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """Login with email and password"""
-    # Find user
-    user = db.query(User).filter(User.email == request.email).first()
+
+    user = fetch_user_by_email(db, request.email)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="email_not_found"
-        )
+        raise NotFound.exception(detail="email_not_found", attr="email")
 
-    # Check password
+    if not user.has_password() and user.is_verified:
+        raise BadRequest.exception(detail="password_not_supported", attr="password")
+
     if not user.check_password(request.password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="password_incorrect"
-        )
+        raise BadRequest.exception(detail="password_incorrect", attr="password")
 
-    # Generate tokens and create token record in database
+    if not user.is_verified:
+        response.status_code = status.HTTP_200_OK
+
+        await _issue_code_and_tokens(db, user.email)
+        return VerificationCodeResponse(purpose="email_verification")
+
     tokens = create_tokens_for_user(user.email, db)
     return TokenResponse(**tokens)
 
-@router.post("/google-login", response_model=TokenResponse)
-async def google_login(request: GoogleLoginRequest, db: Session = Depends(get_db)):
-    """Login with Google OAuth token"""
-    try:
-        # Verify Google token
-        response = requests.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={request.token}",
-            timeout=10
-        )
-        response.raise_for_status()
-        token_info = response.json()
+@router.post("/oauth2", status_code=status.HTTP_201_CREATED, response_model=TokenResponse, responses={
+    400: {
+        "model": BadRequest.error,
+        "description": "Bad request (e.g., invalid token, email mismatch)"
+    }
+})
+async def oauth2(request: OAuth2Request, db: Session = Depends(get_db)):
+    """Login with OAuth2 provider token"""
+    verified_email = await validate_oauth2_token(request.provider, request.token, request.email)
 
-        if "error" in token_info:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="invalid_google_token"
-            )
+    user = fetch_user_by_email(db, verified_email)
+    if not user:
+        user = create_user(db, verified_email, is_verified=True)
+    else:
+        user = verify_user(db, user)
 
-        if "email" not in token_info:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="email_not_provided_by_google"
-            )
+    tokens = create_tokens_for_user(user.email, db)
+    return TokenResponse(**tokens)
 
-        verified_email = token_info["email"].lower()
+async def _issue_code_and_tokens(db: Session, email: str):
+    verification_code = create_verification_code(db, email, "email_verification")
+    token = create_verification_token(email)
 
-        # If frontend provided email, verify it matches
-        if request.user_email:
-            if request.user_email.lower() != verified_email:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="email_mismatch"
-                )
-
-        # Find user
-        user = db.query(User).filter(User.email == verified_email).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="email_not_found"
-            )
-
-        # Generate tokens and create token record in database
-        tokens = create_tokens_for_user(user.email, db)
-        return TokenResponse(**tokens)
-
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="failed_to_verify_google_token"
-        ) from e
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="invalid_google_token"
-        ) from e
-
-@router.post("/facebook-login", response_model=TokenResponse)
-async def facebook_login(request: FacebookLoginRequest, db: Session = Depends(get_db)):
-    """Login with Facebook OAuth token"""
-    try:
-        # Verify Facebook token
-        response = requests.get(
-            f"https://graph.facebook.com/me?fields=email&access_token={request.token}",
-            timeout=10
-        )
-        response.raise_for_status()
-        token_info = response.json()
-
-        if "error" in token_info:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="invalid_facebook_token"
-            )
-
-        if "email" not in token_info:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="email_not_provided_by_facebook"
-            )
-
-        verified_email = token_info["email"].lower()
-
-        # If frontend provided email, verify it matches
-        if request.user_email:
-            if request.user_email.lower() != verified_email:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="email_mismatch"
-                )
-
-        # Find user
-        user = db.query(User).filter(User.email == verified_email).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="email_not_found"
-            )
-
-        # Generate tokens and create token record in database
-        tokens = create_tokens_for_user(user.email, db)
-        return TokenResponse(**tokens)
-
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="failed_to_verify_facebook_token"
-        ) from e
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="invalid_facebook_token"
-        ) from e
+    await send_verification_email(email, verification_code.code, token, purpose="email_verification")

@@ -1,0 +1,13 @@
+Bună, {username}!
+
+Bine ai venit pe platforma AISchool. Pentru a confirma adresa ta de email, accesează linkul de mai jos sau introdu codul de confirmare:
+
+{verify_url}
+
+Codul tău de confirmare: {code}
+
+Dacă nu ai creat acest cont, poți ignora acest mesaj.
+
+Cu respect,
+Echipa AISchool
+

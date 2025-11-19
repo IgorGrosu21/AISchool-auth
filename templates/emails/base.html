@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}{% endblock %}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        font-family: Arial, sans-serif;
+      }
+
+      .container {
+        background-color: #ffffff;
+        padding: 30px;
+        margin: 20px auto;
+        border-radius: 8px;
+        box-shadow: 0 0 10px #ccc;
+        width: 600px;
+      }
+
+      .code-box {
+        display: inline-block;
+        font-size: 24px;
+        letter-spacing: 6px;
+        font-weight: bold;
+        background: #f0f4ff;
+        padding: 12px 18px;
+        border-radius: 6px;
+        color: #1a73e8;
+      }
+
+      .copy-link {
+        word-break: break-all;
+      }
+
+      @media only screen and (max-width: 600px) {
+        .container {
+          padding: 15px !important;
+          width: 100% !important;
+        }
+
+        .code-box {
+          font-size: 20px !important;
+          letter-spacing: 4px !important;
+        }
+
+        .btn {
+          padding: 10px 20px !important;
+        }
+      }
+
+      {% block extra_styles %}{% endblock %}
+    </style>
+  </head>
+  <body>
+    <table width="100%" bgcolor="#f4f4f4" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table class="container" cellpadding="0" cellspacing="0">
+            <tr>
+              <td align="center">
+                <img src="https://aischool.md/logo.png" alt="Logo" style="margin-bottom: 20px;">
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <h2 style="color: #333;">{% block greeting %}{% endblock %}</h2>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <p style="font-size: 16px; color: #555;">
+                  {% block lead_text %}{% endblock %}
+                </p>
+              </td>
+            </tr>
+            {% block action_block %}{% endblock %}
+            {% block code_block %}{% endblock %}
+            {% block secondary_text %}{% endblock %}
+            {% block extra_content %}{% endblock %}
+            <tr>
+              <td>
+                <p style="font-size: 14px; color: #777;">
+                  {% block closing_text %}{% endblock %}
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-top: 30px;">
+                <p style="color: #aaa; font-size: 12px;">Stay in touch</p>
+                <a href="https://facebook.com" style="margin: 0 10px;">
+                  <img src="https://cdn-icons-png.flaticon.com/24/733/733547.png" alt="Facebook" style="vertical-align: middle;">
+                </a>
+                <a href="https://instagram.com" style="margin: 0 10px;">
+                  <img src="https://cdn-icons-png.flaticon.com/24/733/733558.png" alt="Instagram" style="vertical-align: middle;">
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-top: 20px;">
+                <p style="font-size: 12px; color: #bbb;">Copyright &copy; 2025. SRL AISchool</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
+

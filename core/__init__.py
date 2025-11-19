@@ -1,19 +1,39 @@
 """Core application files"""
-from .database import init_db, get_db, Base
 from .settings import (
-    BASE_DIR, HOST,
-    SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE,
-    EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, EMAIL_USE_TLS,
-    DATABASE_URL
+    BASE_DIR, DEBUG, HOST,
+    ALLOWED_HOSTS, CORS_ORIGINS, FORCE_HTTPS, HSTS_MAX_AGE, CSP_HEADER,
+    ALGORITHM, ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE,
+    EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, VERIFICATION_TIMEOUT, VERIFICATION_TOKEN_EXPIRE, VERIFICATION_SECRET,
+    DATABASE_URL,
+    GOOGLE_CLIENT_ID, FACEBOOK_CLIENT_ID,
 )
-from .dependencies import get_current_user
+from .rsa_keys import get_key_manager, get_current_kid, get_jwks, get_private_key
+from .localization import get_language
+from .middleware import SecurityHeadersMiddleware, TrustedHostMiddleware, CorsMiddleware, LocalizationMiddleware
+
+# Build middleware stack conditionally
+middlewareStack = [
+    LocalizationMiddleware,
+    SecurityHeadersMiddleware,
+    TrustedHostMiddleware,
+    CorsMiddleware,
+]
+
+# Only add HTTPS redirect in production when FORCE_HTTPS is enabled
+if FORCE_HTTPS:
+    from .middleware import HTTPSRedirectMiddleware
+    # Add at the beginning (will execute last) to redirect HTTP to HTTPS
+    middlewareStack.insert(0, HTTPSRedirectMiddleware)
 
 __all__ = [
-    'init_db', 'get_db', 'Base',
-    'BASE_DIR', 'HOST',
-    'SECRET_KEY', 'ALGORITHM', 'ACCESS_TOKEN_EXPIRE', 'REFRESH_TOKEN_EXPIRE',
-    'EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_HOST_USER', 'EMAIL_HOST_PASSWORD', 'EMAIL_USE_TLS',
+    'BASE_DIR', 'DEBUG', 'HOST',
+    'ALLOWED_HOSTS', 'CORS_ORIGINS', 'FORCE_HTTPS', 'HSTS_MAX_AGE', 'CSP_HEADER',
+    'ALGORITHM', 'ACCESS_TOKEN_EXPIRE', 'REFRESH_TOKEN_EXPIRE',
+    'EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_HOST_USER', 'EMAIL_HOST_PASSWORD', 'VERIFICATION_TIMEOUT', 'VERIFICATION_TOKEN_EXPIRE', 'VERIFICATION_SECRET',
     'DATABASE_URL',
-    'get_current_user'
+    'GOOGLE_CLIENT_ID', 'FACEBOOK_CLIENT_ID',
+    'get_language',
+    'get_key_manager', 'get_current_kid', 'get_jwks', 'get_private_key',
+    'middlewareStack',
 ]
 

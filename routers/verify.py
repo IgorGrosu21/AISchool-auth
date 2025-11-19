@@ -1,79 +1,77 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
-from core.database import get_db
-from models.models import User
-from core.dependencies import get_current_user
-from utils.email_utils import generate_verification_token, send_verification_email
+
+from models import (
+    delete_verification_codes,
+    fetch_user_by_email,
+    fetch_verification_code,
+    get_db,
+    verify_user,
+    set_user_password,
+)
+from schemas import (
+    BadRequest,
+    NotFound,
+    TokenResponse,
+    VerificationCodeRequest,
+)
+from utils import (
+    create_tokens_for_user,
+    verify_verification_token,
+)
+
 
 router = APIRouter(tags=["verify"])
 
-# Simple token storage for verification (in production, use database or Redis)
-verification_tokens = {}  # {email: token}
+@router.post("/verify-code", response_model=TokenResponse, status_code=status.HTTP_201_CREATED, responses={
+    400: {
+        "model": BadRequest.error,
+        "description": "Bad request (e.g., invalid verification code)"
+    },
+    404: {
+        "model": NotFound.error,
+        "description": "User not found"
+    }
+})
+async def verify_user_by_code(request: VerificationCodeRequest, db: Session = Depends(get_db)):
+    """Verify user email using verification code"""
+    verification_code = fetch_verification_code(db, request.email, request.purpose, request.code)
 
-def verify_token_for_user(user: User, token: str) -> bool:
-    """Verify token for user (simplified - in production use proper token generation)"""
-    # Check if token matches stored token
-    stored_token = verification_tokens.get(user.email)
-    if stored_token and stored_token == token:
-        return True
-    return False
+    if not verification_code:
+        raise BadRequest.exception(detail="invalid_code", attr="code")
 
-@router.post("/send-verification", status_code=status.HTTP_204_NO_CONTENT)
-async def send_verification_email_endpoint(
-    current_user: User = Depends(get_current_user),
-    _db: Session = Depends(get_db)
-):
-    """Send verification email to current user"""
-    if current_user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="already_verified"
-        )
+    user = _cleanup_user_codes(db, request.email, request.purpose)
 
-    # Generate verification token
-    token = generate_verification_token(current_user)
-    verification_tokens[current_user.email] = token
+    if request.purpose == "email_verification":
+        user = verify_user(db, user)
+    elif request.purpose == "password_reset":
+        user = set_user_password(db, user, request.password)
 
-    # Send email
-    send_verification_email(current_user, token)
+    tokens = create_tokens_for_user(user.email, db)
+    return TokenResponse(**tokens)
 
-    return None
+@router.get("/verify-token", status_code=status.HTTP_200_OK, responses={
+    400: {
+        "model": BadRequest.error,
+        "description": "Bad request (e.g., invalid or expired token)"
+    },
+    404: {
+        "model": NotFound.error,
+        "description": "User not found"
+    }
+})
+async def verify_user_by_token(token: str = Query(..., description="Verification token"), db: Session = Depends(get_db)):
+    """Verify user email using stateless JWT token"""
+    email = verify_verification_token(token)
 
-@router.get("/verify", status_code=status.HTTP_204_NO_CONTENT)
-async def verify_user(
-    pk: str = Query(..., description="User email"),
-    token: str = Query(..., description="Verification token"),
-    db: Session = Depends(get_db)
-):
-    """Verify user email"""
-    try:
-        user = db.query(User).filter(User.email == pk).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="user_doesn't_exist"
-            )
+    user = _cleanup_user_codes(db, email, "email_verification")
+    user = verify_user(db, user)
 
-        # Verify token
-        stored_token = verification_tokens.get(user.email)
-        if not stored_token or stored_token != token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="incorrect_token"
-            )
+    return Response(content="Success!", status_code=status.HTTP_200_OK, headers={"Content-Type": "text/plain"})
 
-        # Mark user as verified
-        user.is_verified = True
-        db.commit()
-
-        # Remove token from storage
-        verification_tokens.pop(user.email, None)
-
-        return None
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="incorrect_token"
-        ) from e
+def _cleanup_user_codes(db: Session, email: str, purpose: str):
+    user = fetch_user_by_email(db, email)
+    if not user:
+        raise NotFound.exception(detail="email_not_found", attr="token")
+    delete_verification_codes(db, email, purpose)
+    return user

@@ -3,7 +3,7 @@ RSA Key Management for JWT RS256 signing
 Handles key generation, storage, and rotation
 """
 import base64
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import json
 from typing import Dict, Optional
 
@@ -60,13 +60,13 @@ class RSAKeyManager:
         key_id = self._generate_key_id()
 
         # Calculate expiration (1 week from now)
-        expires_at = datetime.now(timezone.utc) + timedelta(weeks=1)
+        expires_at = datetime.now() + timedelta(weeks=1)
 
         return {
             "kid": key_id,
             "private_key": private_pem.decode('utf-8'),
             "public_key": public_pem.decode('utf-8'),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now().isoformat(),
             "expires_at": expires_at.isoformat(),
             "active": True
         }
@@ -94,7 +94,7 @@ class RSAKeyManager:
             current_key = self.get_current_key()
             if current_key:
                 expires_at = datetime.fromisoformat(current_key["expires_at"])
-                if expires_at < datetime.now(timezone.utc) + timedelta(days=1):
+                if expires_at < datetime.now() + timedelta(days=1):
                     # Rotate key when it expires within 1 day
                     self.rotate_key()
 
@@ -147,7 +147,7 @@ class RSAKeyManager:
     def get_jwks(self) -> Dict:
         """Get JSON Web Key Set (JWKS) for public keys (only non-expired keys)"""
         jwks = {"keys": []}
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
 
         # Include only active and non-expired keys
         for key_data in self.keys.get("keys", []):

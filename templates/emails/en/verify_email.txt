@@ -1,0 +1,13 @@
+Hello, {username}!
+
+Welcome to AISchool. To verify your email address, please follow the link below or enter the confirmation code:
+
+{verify_url}
+
+Your confirmation code: {code}
+
+If you did not create this account, you can ignore this message.
+
+Best regards,
+AISchool Team
+

@@ -1,5 +1,5 @@
 [project]
-name = "fastapi-auth"
+name = "auth"
 version = "0.1.0"
 description = "FastAPI Authentication API"
 readme = "README.md"
@@ -18,10 +18,6 @@ dependencies = [
     "pydantic-settings>=2.1.0",
     "cryptography>=41.0.0",
 ]
-
-[tool.pylint]
-load-plugins = "pylint_django"
-django-settings-module = "core.settings"
 
 disable = [
     "invalid-name",

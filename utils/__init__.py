@@ -1,18 +1,19 @@
 """Utility functions"""
-from .jwt_utils import (
-    generate_jti,
-    create_access_token, create_refresh_token,
-    create_tokens_for_user,
-    verify_token, verify_refresh_token, verify_access_token
+from .current_user import get_current_user
+from .email import send_verification_email
+from .exception_handlers import exception_handlers
+from .jwt import (
+    create_access_token, create_tokens_for_user, create_verification_token,
+    verify_refresh_token, verify_access_token, verify_verification_token
 )
-from .email_utils import generate_verification_token, send_verification_email
-from .token_storage import token_blacklist
+from .oauth2 import validate_oauth2_token
 
 __all__ = [
-    'generate_jti',
-    'create_access_token', 'create_refresh_token', 'create_tokens_for_user',
-    'verify_token', 'verify_refresh_token', 'verify_access_token',
-    'generate_verification_token', 'send_verification_email',
-    'token_blacklist'
+    'get_current_user',
+    'send_verification_email',
+    'exception_handlers',
+    'create_access_token', 'create_tokens_for_user', 'create_verification_token',
+    'verify_refresh_token', 'verify_access_token', 'verify_verification_token',
+    'validate_oauth2_token',
 ]
 
