@@ -13,11 +13,13 @@ from .middleware import (
     SecurityHeadersMiddleware,
     TrustedHostMiddleware,
     CorsMiddleware,
-    LocalizationMiddleware
+    LocalizationMiddleware,
+    TrailingSlashMiddleware
 )
 
 # Build middleware stack conditionally
 MIDDLEWARE_STACK = [
+    TrailingSlashMiddleware,
     LocalizationMiddleware,
     SecurityHeadersMiddleware,
     TrustedHostMiddleware,

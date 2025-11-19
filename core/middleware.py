@@ -166,6 +166,46 @@ class CorsMiddleware:
         return response
 
 
+class TrailingSlashMiddleware:
+    """
+    Middleware to normalize trailing slashes in URLs.
+    
+    Redirects URLs with trailing slashes to their non-trailing slash equivalents
+    (except for the root path '/'). This ensures both /route and /route/ work.
+    """
+    
+    def __init__(self):
+        pass
+
+    def before_request(self):
+        path = request.path
+        
+        # Don't redirect the root path
+        if path == '/':
+            return None
+        
+        # If path ends with a trailing slash, redirect to version without it
+        if path.endswith('/'):
+            # Build new URL without trailing slash
+            new_path = path.rstrip('/')
+            
+            # Build the new URL using url_root (scheme + host + port) + new path
+            # Preserve query string if present
+            query_string = request.query_string.decode('utf-8')
+            if query_string:
+                new_url = f"{request.url_root.rstrip('/')}{new_path}?{query_string}"
+            else:
+                new_url = f"{request.url_root.rstrip('/')}{new_path}"
+            
+            # Use 308 (Permanent Redirect) to preserve request method
+            return redirect(new_url, code=308)
+        
+        return None
+
+    def after_request(self, response):
+        return response
+
+
 class LocalizationMiddleware:
     """Middleware to determine preferred language from Accept-Language header."""
 
