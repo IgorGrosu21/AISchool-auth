@@ -15,7 +15,6 @@ from core import (
 )
 from core import get_language
 from core.settings import DEFAULT_LANGUAGE
-from models import User
 
 DEFAULT_PURPOSE = "email_verification"
 

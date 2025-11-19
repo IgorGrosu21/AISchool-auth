@@ -10,6 +10,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
 
+from starlette.responses import RedirectResponse
+
 from .localization import normalize_language, reset_language, set_language
 from .settings import (
   ALLOWED_HOSTS,
@@ -20,6 +22,45 @@ from .settings import (
   HSTS_MAX_AGE,
   SUPPORTED_LANGUAGES,
 )
+
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+  """
+  Redirect HTTP requests to HTTPS when FORCE_HTTPS is enabled.
+  
+  Equivalent to Django's SecurityMiddleware SSL redirect functionality.
+  Handles X-Forwarded-Proto header for proxy/load balancer setups.
+  """
+
+  def __init__(self, app: ASGIApp):
+    super().__init__(app)
+    self.force_https = FORCE_HTTPS
+
+  async def dispatch(self, request: Request, call_next):
+    # Check if HTTPS redirect is enabled
+    if not self.force_https:
+      return await call_next(request)
+
+    # Determine if request is secure
+    # Check X-Forwarded-Proto header first (common in proxy setups like Render)
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "").lower()
+    is_secure = (
+      request.url.scheme == "https" or 
+      forwarded_proto == "https"
+    )
+
+    # If request is not secure, redirect to HTTPS
+    if not is_secure:
+      # Build HTTPS URL
+      https_url = request.url.replace(scheme="https")
+      
+      # Return permanent redirect (308) to preserve request method
+      return RedirectResponse(
+        url=str(https_url),
+        status_code=308,  # Permanent Redirect (preserves method)
+      )
+
+    return await call_next(request)
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
   """
@@ -58,7 +99,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     )
 
     # Strict-Transport-Security (HSTS): Force HTTPS
-    if self.force_https and request.url.scheme == "https":
+    # Check both URL scheme and X-Forwarded-Proto header (for proxy setups)
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "").lower()
+    is_secure = (
+      request.url.scheme == "https" or 
+      forwarded_proto == "https"
+    )
+    if self.force_https and is_secure:
       response.headers["Strict-Transport-Security"] = (
         f"max-age={self.hsts_max_age}; includeSubDomains"
       )

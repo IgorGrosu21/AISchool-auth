@@ -24,7 +24,9 @@ ENV/
 .env.local
 
 # Keys directory (contains private keys)
-rsa_keys.json
+keys/rsa_keys.json
+keys/*.json
+!keys/.gitkeep
 
 # IDE
 .vscode/
