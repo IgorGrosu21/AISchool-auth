@@ -71,12 +71,22 @@ This application is ready to deploy on Render.com. See the detailed deployment g
 - **Quick Start**: See [RENDER_QUICK_START.md](RENDER_QUICK_START.md)
 - **Detailed Guide**: See [DEPLOYMENT.md](DEPLOYMENT.md)
 
+### Deploy to Vercel
+
+This application can also be deployed on Vercel (serverless). See the deployment guide:
+
+- **Quick Start**: See [VERCEL_QUICK_START.md](VERCEL_QUICK_START.md)
+- **Detailed Guide**: See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md)
+
+**Note:** Vercel requires an external PostgreSQL database (Render, Supabase, Neon, etc.)
+
 ### Key Points for Deployment
 
 1. **Database**: The application supports both SQLite (local) and PostgreSQL (production)
 2. **Environment Variables**: All configuration is done via environment variables
 3. **RSA Keys**: Automatically generated on first run and stored in `keys/` directory
-4. **Requirements**: Use `requirements.txt` for dependency installation
+4. **Requirements**: Use `r.txt` or `requirements.txt` for dependency installation
+5. **Serverless**: For Vercel, RSA keys are stored in `/tmp` (temporary storage)
 
 ## Project Structure
 
