@@ -1,41 +1,27 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.types import PublicKeyTypes
+from django.conf import settings
 from jose import JWTError, jwt
+from shared_backend.utils.exceptions import BadRequest
 
-from core import ALGORITHM, VERIFICATION_SECRET, get_key_manager
-from schemas import BadRequest, Unauthorized
+from .rsa_keys import get_public_key
 
-def _get_public_key_from_jwks(kid: str):
-    """Get public key from JWKS for verification (only non-expired keys)"""
-    manager = get_key_manager()
-    now = datetime.now()
 
-    # Find key by kid
-    key_data = None
-    for k in manager.keys.get("keys", []):
-        if k["kid"] == kid:
-            key_data = k
-            break
+def _get_public_key_from_jwks(kid: str) -> PublicKeyTypes:
+    """Get public key from JWKS for verification
 
-    if not key_data:
-        raise Unauthorized.exception(detail="token_key_not_found", attr="token")
+    Allows verification with expired keys (as long as not retired)
+    Keys are kept available for verification until retires_at (30 days)
+    """
+    public_key = get_public_key(kid)
+    return serialization.load_pem_public_key(public_key, backend=default_backend())
 
-    # Check if key is expired
-    expires_at = datetime.fromisoformat(key_data["expires_at"])
-    if expires_at < now:
-        raise Unauthorized.exception(detail="token_key_expired", attr="token")
 
-    # Load public key
-    public_key = serialization.load_pem_public_key(
-        key_data["public_key"].encode('utf-8'),
-        backend=default_backend()
-    )
-
-    return public_key
-
-def verify_token(token: str, token_type: str):
+def verify_token(token: str, token_type: str) -> dict[str, Any]:
     """Verify and decode JWT token using RS256"""
     try:
         # Decode without verification first to get kid
@@ -43,55 +29,63 @@ def verify_token(token: str, token_type: str):
         kid = unverified.get("kid")
 
         if not kid:
-            raise Unauthorized.exception(detail="token_missing_key_id", attr="token")
+            raise BadRequest(detail="token_missing_key_id", attr="token")
 
         # Get public key for verification
         public_key = _get_public_key_from_jwks(kid)
 
         # Verify and decode token
-        payload = jwt.decode(token, public_key, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, public_key, algorithms=[settings.ALGORITHM])  # type: ignore
 
-        if payload.get("type") != token_type:
-            raise Unauthorized.exception(detail="invalid_token_type", attr="token")
+        if not payload.get("type", "").startswith(token_type):
+            raise BadRequest(detail="invalid_token_type", attr="token")
 
-        email: str | None = payload.get("email")
-        if email is None:
-            raise Unauthorized.exception(detail="invalid_token_payload", attr="token")
-        jti: str = payload.get("jti")
+        result: dict[str, Any] = {
+            "type": token_type,
+        }
+
+        # Handle different token types
+        if token_type == "service":
+            # Service tokens have service_id
+            service_id = payload.get("service_id")
+            if service_id is None:
+                raise BadRequest(detail="invalid_token_payload", attr="token")
+            result["service_id"] = service_id
+        else:
+            # User tokens (access, refresh)
+            auth_id = payload.get("auth_id")
+            if auth_id is None:
+                raise BadRequest(detail="invalid_token_payload", attr="token")
+            result["auth_id"] = auth_id
+
+            # Refresh tokens have jti
+            jti = payload.get("jti")
+            if jti:
+                result["jti"] = jti
+
         exp_timestamp = payload.get("exp", 0)
-        exp: datetime = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
-        return {"email": email, "jti": jti, "exp": exp}
+        exp = datetime.fromtimestamp(exp_timestamp, tz=UTC)
+        result["exp"] = exp
+
+        return result
     except JWTError as exc:
-        raise Unauthorized.exception(detail="invalid_credentials", attr="token") from exc
-    except Unauthorized.exception:
+        raise BadRequest(detail="invalid_credentials", attr="token") from exc
+    except BadRequest:
         raise
     except Exception as exc:
-        raise Unauthorized.exception(detail="invalid_credentials", attr="token") from exc
+        raise BadRequest(detail="invalid_credentials", attr="token") from exc
 
-def verify_refresh_token(token: str):
-    """Verify refresh token"""
-    return verify_token(token, token_type="refresh")
 
-def verify_access_token(token: str):
+def verify_access_token(token: str) -> dict[str, Any]:
     """Verify access token"""
     return verify_token(token, token_type="access")
 
-def verify_verification_token(token: str) -> str:
-    """Verify and decode JWT verification token"""
-    try:
-        payload = jwt.decode(
-            token,
-            VERIFICATION_SECRET,
-            algorithms=["HS256"],
-            options={"verify_exp": True}
-        )
 
-        # Verify token type
-        email = payload.get("email")
-        if payload.get("type") == "email_verification" and email:
-            return email
+def verify_refresh_token(token: str) -> dict[str, Any]:
+    """Verify refresh token"""
+    return verify_token(token, token_type="refresh")
 
-        raise BadRequest.exception(detail="invalid_or_expired_token", attr="token")
 
-    except Exception as exc:
-        raise BadRequest.exception(detail="invalid_or_expired_token", attr="token") from exc
+def verify_service_token(token: str) -> dict[str, Any]:
+    """Verify service token"""
+    return verify_token(token, token_type="service")

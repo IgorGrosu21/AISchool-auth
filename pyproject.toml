@@ -1,41 +1,43 @@
 [project]
 name = "auth"
-version = "0.1.0"
-description = "Flask Authentication API"
+version = "1.1.0"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = [
-    "flask>=3.0.0",
-    "sqlalchemy>=2.0.0",
-    "python-jose[cryptography]>=3.3.0",
-    "email-validator>=2.1.0",
-    "werkzeug>=3.0.0",
-    "jinja2>=3.1.0",
-    "requests>=2.31.0",
-    "marshmallow>=3.20.0",
-    "cryptography>=41.0.0",
-    "python-dotenv>=1.0.0",
-    "flasgger>=0.9.7",
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+  "migrations",
+  "venv",
+  ".venv",
+  "node_modules",
+  "__pycache__",
+  "*.pyc"
 ]
 
-disable = [
-    "invalid-name",
-    "missing-docstring",
-    "bad-indentation",
-    "line-too-long",
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort (imports)
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "DJ",  # django rules
 ]
 
-enable = [
-    "all",
+ignore = [
+  "N801",  # invalid function name
+  "D100",  # missing docstring in module
+  "E501"   # line too long
 ]
 
-confidence = "HIGH"
+[tool.mypy]
+plugins = ["mypy_django_plugin.main"]
+strict = true
 
-ignore-paths = [
-    "migrations",
-    "venv",
-    ".venv",
-    "node_modules",
-    "__pycache__",
-    ".*\\.pyc$",
-]
+[tool.django-stubs]
+django_settings_module = "core.settings"
+

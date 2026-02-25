@@ -1,22 +1,14 @@
-from datetime import datetime, timezone
 import secrets
-from typing import Optional
+from datetime import datetime
+from typing import Any, TypedDict
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from django.conf import settings
+from django.utils import timezone
 from jose import jwt
 
-from core import (
-    ACCESS_TOKEN_EXPIRE,
-    REFRESH_TOKEN_EXPIRE,
-    VERIFICATION_TOKEN_EXPIRE,
-    VERIFICATION_SECRET,
-    ALGORITHM,
-    get_current_kid,
-    get_private_key,
-)
-
-from models import create_or_update_refresh_token
+from .rsa_keys import get_current_kid, get_private_key
 
 
 def _generate_jti() -> str:
@@ -24,25 +16,33 @@ def _generate_jti() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _get_signing_key(kid: Optional[str] = None) -> bytes:
+def _get_signing_key(kid: str) -> bytes:
     """Get private key for signing tokens"""
     if not kid:
         kid = get_current_kid()
     return get_private_key(kid)
 
 
-def _create_signed_token(data: dict, token_type: str, kid: Optional[str] = None):
+def _create_signed_token(
+    data: dict[str, Any], token_type: str, kid: str | None = None
+) -> tuple[str, datetime]:
     """Create JWT token signed with RS256"""
+    now = timezone.now()
+
     expire_map = {
-        "access": ACCESS_TOKEN_EXPIRE,
-        "refresh": REFRESH_TOKEN_EXPIRE,
+        "access": settings.ACCESS_TOKEN_EXPIRE,
+        "refresh_short": settings.REFRESH_TOKEN_EXPIRE_SHORT,
+        "refresh_long": settings.REFRESH_TOKEN_EXPIRE_LONG,
+        "service": settings.SERVICE_TOKEN_EXPIRE,
     }
 
-    now = datetime.now(timezone.utc)
-    expire = now + expire_map[token_type]
+    expire = now + expire_map.get(token_type, settings.ACCESS_TOKEN_EXPIRE)
 
     to_encode = data.copy()
-    to_encode.update({"exp": expire, "type": token_type, "iat": now})
+    # Convert datetime to Unix timestamp (seconds since epoch) for JWT standard
+    to_encode.update(
+        {"exp": int(expire.timestamp()), "type": token_type, "iat": int(now.timestamp())}
+    )
 
     # Add kid to header if not provided
     if not kid:
@@ -51,60 +51,55 @@ def _create_signed_token(data: dict, token_type: str, kid: Optional[str] = None)
     # Get private key
     private_key_pem = _get_signing_key(kid)
     private_key = serialization.load_pem_private_key(
-        private_key_pem,
-        password=None,
-        backend=default_backend()
+        private_key_pem, password=None, backend=default_backend()
     )
 
     # Encode token with RS256
     headers = {"kid": kid}
-    encoded_jwt = jwt.encode(to_encode, private_key, algorithm=ALGORITHM, headers=headers)
+    encoded_jwt = jwt.encode(
+        to_encode,
+        private_key,  # type: ignore
+        algorithm=settings.ALGORITHM,
+        headers=headers,
+    )
     return encoded_jwt, expire
 
 
-def create_access_token(data: dict, kid: Optional[str] = None):
+def create_access_token(data: dict[str, Any], kid: str | None = None) -> str:
     """Create JWT access token signed with RS256"""
-    token, _ = _create_signed_token(data, "access", kid)
+    token, _ = _create_signed_token(data, "access", kid=kid)
     return token
 
 
-def create_refresh_token(data: dict, kid: Optional[str] = None):
+def create_refresh_token(
+    data: dict[str, Any], long_refresh: bool = False, kid: str | None = None
+) -> tuple[str, datetime, str]:
     """Create JWT refresh token with optional JTI, signed with RS256"""
-    token, expire = _create_signed_token(data, "refresh", kid)
-    return token, expire
-
-
-def create_tokens_for_user(email: str, db=None):
-    """Create both access and refresh tokens for a user"""
-    kid = get_current_kid()
-    access_token = create_access_token({"email": email}, kid=kid)
-
-    # Generate JTI for refresh token
     jti = _generate_jti()
-    refresh_token, expire = create_refresh_token({"email": email, "jti": jti}, kid=kid)
-
-    # If database session is provided, create token record
-    if db:
-        create_or_update_refresh_token(db, {
-            "user_email": email,
-            "expires_at": expire,
-            "jti": jti,
-            "is_blacklisted": False,
-        })
-
-    return {
-        "access": access_token,
-        "refresh": refresh_token
-    }
+    token_type = "refresh_short" if not long_refresh else "refresh_long"
+    token, expire = _create_signed_token({**data, "jti": jti}, token_type, kid=kid)
+    return token, expire, jti
 
 
-def create_verification_token(user_email: str) -> str:
-    """Generate a stateless JWT verification token"""
-    now = datetime.now(timezone.utc)
-    token = jwt.encode({
-        "email": user_email,
-        "type": "email_verification",
-        "exp": now + VERIFICATION_TOKEN_EXPIRE,
-        "iat": now,
-    }, VERIFICATION_SECRET, algorithm="HS256")
+class AuthTokens(TypedDict):
+    access: str
+    refresh: tuple[str, datetime, str]
+
+
+def create_auth_tokens(auth_id: str, long_refresh: bool = False) -> AuthTokens:
+    """Create JWT auth tokens for a user"""
+    kid = get_current_kid()
+    access_token = create_access_token({"auth_id": auth_id}, kid)
+    refresh_token, expire, jti = create_refresh_token({"auth_id": auth_id}, long_refresh, kid)
+    return {"access": access_token, "refresh": (refresh_token, expire, jti)}
+
+
+def create_service_token(service_id: str) -> str:
+    """Create JWT service token signed with RS256"""
+    token, _ = _create_signed_token({"service_id": service_id}, "service")
+    return token
+
+
+def generate_token(data: dict[str, Any], token_type: str) -> str:
+    token, _ = _create_signed_token(data, token_type)
     return token

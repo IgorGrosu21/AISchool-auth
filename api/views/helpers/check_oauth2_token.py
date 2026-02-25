@@ -1,0 +1,63 @@
+from typing import Any
+
+import requests
+from django.conf import settings
+from shared_backend.utils.exceptions import BadRequest
+
+url_mapping = {
+    "google": "https://oauth2.googleapis.com/tokeninfo?id_token={token}",
+    "facebook": "https://graph.facebook.com/debug_token?input_token={token}&access_token={client_id}",
+}
+
+
+def validate_google_token(token_info: dict[str, Any], email: str) -> dict[str, Any]:
+    email_ok = "email" in token_info and token_info["email"].lower().strip() == email
+    aud_ok = (
+        token_info["aud"] == settings.GOOGLE_CLIENT_ID
+        and token_info["azp"] == settings.GOOGLE_CLIENT_ID
+    )
+    email_verified_ok = token_info["email_verified"] == "true"
+
+    if email_ok and aud_ok and email_verified_ok:
+        return token_info
+
+    raise BadRequest(detail="invalid_oauth2_token", attr="token")
+
+
+def validate_facebook_token(token_info: dict[str, Any]) -> dict[str, Any]:
+    app_id_ok = token_info["app_id"] == settings.FACEBOOK_CLIENT_ID.split("|")[0]
+    type_ok = token_info["type"] == "USER"
+    is_valid_ok = token_info["is_valid"]
+    scopes_ok = "email" in token_info["scopes"] and "public_profile" in token_info["scopes"]
+
+    if app_id_ok and type_ok and is_valid_ok and scopes_ok:
+        return token_info
+
+    raise BadRequest(detail="invalid_oauth2_token", attr="token")
+
+
+def validate_oauth2_token(provider: str, token: str, email: str) -> str:
+    if provider == "google":
+        url = url_mapping["google"].format(token=token)
+    elif provider == "facebook":
+        url = url_mapping["facebook"].format(token=token, client_id=settings.FACEBOOK_CLIENT_ID)
+    else:
+        raise BadRequest(detail="invalid_oauth2_provider", attr="provider")
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        token_info = response.json()
+
+        if provider == "google":
+            validate_google_token(token_info, email)
+        elif provider == "facebook":
+            validate_facebook_token(token_info["data"])
+
+        return email
+    except requests.exceptions.RequestException as e:
+        raise BadRequest(detail="failed_to_validate_oauth2_token", attr="token") from e
+    except BadRequest:
+        raise
+    except Exception as e:
+        raise BadRequest(detail="invalid_oauth2_token", attr="token") from e

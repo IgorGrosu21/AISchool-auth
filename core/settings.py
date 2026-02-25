@@ -1,87 +1,52 @@
-"""Settings for the application"""
 from datetime import timedelta
-import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from shared_backend.core.settings.helpers import get_env, load_environment, setup_base_dir
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-load_dotenv(BASE_DIR / '.env')
-
-# General Settings
-
-DEBUG = bool(int(os.environ.get('DEBUG', '0')))
-if not DEBUG and os.environ.get('ENVIRONMENT') == 'production':
-    DEBUG = False
-
-HOST = os.environ.get('HOST')
-if not HOST:
-    raise ValueError("HOST environment variable is required")
-
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
-if not ALLOWED_HOSTS or ALLOWED_HOSTS == ['']:
-    raise ValueError("ALLOWED_HOSTS environment variable is required")
-
-CORS_ORIGINS = os.environ.get('CORS_ORIGINS').split(',')
-if not CORS_ORIGINS or CORS_ORIGINS == ['']:
-    raise ValueError("CORS_ORIGINS environment variable is required")
-
-FORCE_HTTPS = bool(int(os.environ.get('FORCE_HTTPS', '0')))
-HSTS_MAX_AGE = int(os.environ.get('HSTS_MAX_AGE', '31536000'))
-CSP_HEADER= os.environ.get('CSP_HEADER')
-if not CSP_HEADER:
-    raise ValueError("CSP_HEADER environment variable is required")
+BASE_DIR = setup_base_dir(Path(__file__))
+load_environment(BASE_DIR)
 
 
+from shared_backend.core.settings.defaults import *
+from shared_backend.core.settings.defaults import (
+    REST_FRAMEWORK,
+    setup_databases,
+    setup_static_files,
+)
 
-# RSA Settings
+REST_FRAMEWORK = {
+    **REST_FRAMEWORK,
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "utils.jwt.authentification.user.JWTUserAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+}
 
-SECRET_KEY = os.environ.get('SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is required")
+from .auth_schema import *
 
+DATABASES = setup_databases(BASE_DIR)
+
+static_files_dict = setup_static_files(BASE_DIR)
+
+STATIC_URL = static_files_dict["STATIC_URL"]
+STATIC_ROOT = static_files_dict["STATIC_ROOT"]
+
+MEDIA_URL = static_files_dict["MEDIA_URL"]
+MEDIA_ROOT = static_files_dict["MEDIA_ROOT"]
+
+PUBLIC_URL = static_files_dict["PUBLIC_URL"]
+PUBLIC_ROOT = static_files_dict["PUBLIC_ROOT"]
+
+# JWT Settings
 ALGORITHM = "RS256"
-ACCESS_TOKEN_EXPIRE = timedelta(hours=2)
-REFRESH_TOKEN_EXPIRE = timedelta(days=180)
+ACCESS_TOKEN_EXPIRE = timedelta(minutes=30)  # 30 minutes
+REFRESH_TOKEN_EXPIRE_SHORT = timedelta(days=1)  # 1 day (default, no remember_me)
+REFRESH_TOKEN_EXPIRE_LONG = timedelta(days=30)  # 30 days (remember_me=True)
+SERVICE_TOKEN_EXPIRE = timedelta(hours=2)  # 2 hours
 
-
-
-# Email Settings
-
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 VERIFICATION_TIMEOUT = timedelta(minutes=1)
 VERIFICATION_TOKEN_EXPIRE = timedelta(minutes=30)
-VERIFICATION_SECRET = os.environ.get('VERIFICATION_SECRET')
-if not VERIFICATION_SECRET:
-    raise ValueError("VERIFICATION_SECRET environment variable is required")
-
-
-
-# Localization Settings
-
-SUPPORTED_LANGUAGES = ('en', 'ru', 'ro')
-DEFAULT_LANGUAGE = 'en'
-
-
-
-# Database Settings
-
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is required")
-
-
 
 # OAuth2 Settings
-
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
-if not GOOGLE_CLIENT_ID:
-    raise ValueError("GOOGLE_CLIENT_ID environment variable is required")
-
-FACEBOOK_CLIENT_ID = os.environ.get('FACEBOOK_CLIENT_ID')
-if not FACEBOOK_CLIENT_ID:
-    raise ValueError("FACEBOOK_CLIENT_ID environment variable is required")
+GOOGLE_CLIENT_ID = get_env("GOOGLE_CLIENT_ID")
+FACEBOOK_CLIENT_ID = get_env("FACEBOOK_CLIENT_ID")
