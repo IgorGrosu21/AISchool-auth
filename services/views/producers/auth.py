@@ -41,11 +41,6 @@ class AuthView(BaseProducerView[ServiceTokenSerializer]):
         if not service.compare_secret(secret):
             raise Unauthorized(detail="invalid_service_credentials", attr="secret")
 
-        # Check if service is allowed to access the API
-        original_host: str = self.request.get_host()
-        if not service.compare_host(original_host):
-            raise Forbidden(detail="service_not_allowed", attr="host")
-
         # Generate service token
         access_token = create_service_token(id)
 
