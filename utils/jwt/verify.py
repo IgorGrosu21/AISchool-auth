@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from cryptography.hazmat.backends import default_backend
@@ -64,7 +64,7 @@ def verify_token(token: str, token_type: str) -> dict[str, Any]:
                 result["jti"] = jti
 
         exp_timestamp = payload.get("exp", 0)
-        exp = datetime.fromtimestamp(exp_timestamp, tz=UTC)
+        exp = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)  # noqa: UP017
         result["exp"] = exp
 
         return result
