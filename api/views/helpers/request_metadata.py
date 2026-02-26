@@ -2,7 +2,7 @@ import hashlib
 from typing import Any
 
 from rest_framework.request import Request
-from user_agents import parse as parse_user_agent  # type: ignore
+from user_agents import parse as parse_user_agent
 
 from api.models import LoginEvent, User
 
