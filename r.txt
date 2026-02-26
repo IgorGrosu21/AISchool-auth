@@ -1,5 +1,4 @@
-# Editable install with no version control (aischool-backend-framework==0.1.0)
--e e:\sites\aischool\backend\aischool_backend_framework
+-e git+https://github.com/IgorGrosu21/AISchool-shared-backend.git@4d6d9b6d455ef77f6beacd0b9dea0aab7a560d1c#egg=aischool_backend_framework
 asgiref==3.11.0
 attrs==25.4.0
 certifi==2025.11.12
@@ -8,7 +7,10 @@ charset-normalizer==3.4.4
 cryptography==46.0.3
 Django==5.2.9
 django-cors-headers==4.9.0
+django-stubs==5.2.9
+django-stubs-ext==5.2.9
 djangorestframework==3.16.1
+djangorestframework-stubs==3.16.8
 drf-spectacular==0.29.0
 drf-spectacular-sidecar==2025.12.1
 ecdsa==0.19.1
@@ -16,6 +18,10 @@ idna==3.11
 inflection==0.5.1
 jsonschema==4.25.1
 jsonschema-specifications==2025.9.1
+librt==0.8.1
+mypy==1.19.1
+mypy_extensions==1.1.0
+pathspec==1.0.4
 pyasn1==0.6.1
 pycparser==2.23
 PyJWT==2.10.1
@@ -28,6 +34,10 @@ rpds-py==0.30.0
 rsa==4.9.1
 six==1.17.0
 sqlparse==0.5.4
+types-pyasn1==0.6.0.20250914
+types-python-jose==3.5.0.20250531
+types-PyYAML==6.0.12.20250915
+types-requests==2.32.4.20260107
 typing_extensions==4.15.0
 tzdata==2025.3
 ua-parser==1.0.1
